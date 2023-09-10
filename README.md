@@ -7,7 +7,7 @@ It can also be amended to only run once when called and then exit or the interva
 
 Instructions for use... 
 
-1-Place this file in chosen director
+1-Place this file in chosen directory
 
 2-Add the ip addresses you want to ping and save the file
 
