@@ -1,43 +1,54 @@
 #!/bin/bash
 
 #-----Set IP addresses here-------------
-PING1=0.0.0.0 
-PING2=0.0.0.0
-PING3=0.0.0.0
+DEFAULT_HOSTS=("0.0.0.0" "0.0.0.0" "0.0.0.0")
 #---------------------------------------
-TIME1=`date +"%A %d %B %Y (%r)"`
-#---------------------------------------
+
+HOSTS_INPUT="${HOSTS:-}"
+
+while [[ $# -gt 0 ]]
+do
+case "$1" in
+    --hosts)
+    shift
+    HOSTS_INPUT="$1"
+    shift
+    ;;
+    *)
+    echo "Unknown option: $1"
+    echo "Usage: $0 [--hosts \"host1,host2,host3\"]"
+    exit 1
+    ;;
+esac
+done
+
+if [ -z "$HOSTS_INPUT" ]; then
+    HOST_LIST=("${DEFAULT_HOSTS[@]}")
+else
+    IFS=', ' read -r -a HOST_LIST <<< "${HOSTS_INPUT//,/ }"
+fi
+
+if [ ${#HOST_LIST[@]} -eq 0 ]; then
+    echo "No hosts provided."
+    exit 1
+fi
 
 check_response() #response codes are the following 0=reachable 1=unreachable
 {
+TIME1=`date +"%A %d %B %Y (%r)"`
 echo -e "\n###Date of check $TIME1###\n"
 
-FIRST_PING=$(ping -c 1 $PING1 ; echo $?)
-FIRST_RESULT=${FIRST_PING: -1}
-if [ $FIRST_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${FIRST_PING: -1}"
-else
-    echo "Host Reachable with exit code ${FIRST_PING: -1}"
-fi
-
-SECOND_PING=$(ping -c 1 $PING2 ; echo $?)
-SECOND_RESULT=${SECOND_PING: -1}
-if [ $SECOND_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${SECOND_PING: -1}"
-else
-    echo "Host Reachable with exit code ${SECOND_PING: -1}"
-fi
-
-THIRD_PING=$(ping -c 1 $PING3 ; echo $?)
-THIRD_RESULT=${THIRD_PING: -1}
-if [ $THIRD_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${THIRD_PING: -1}"
-else
-    echo "Host Reachable with exit code ${THIRD_PING: -1}"
-fi
+for HOST in "${HOST_LIST[@]}"
+do
+    ping -c 1 "$HOST" > /dev/null 2>&1
+    RESULT=$?
+    if [ $RESULT -gt 0 ]
+    then
+        echo "Host $HOST Unreachable with exit code $RESULT"
+    else
+        echo "Host $HOST Reachable with exit code $RESULT"
+    fi
+done
 }
 
 #Creates file if does not exist
