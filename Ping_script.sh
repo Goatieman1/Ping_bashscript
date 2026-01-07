@@ -1,55 +1,92 @@
 #!/bin/bash
 
 #-----Set IP addresses here-------------
-PING1=0.0.0.0 
+PING1=0.0.0.0
 PING2=0.0.0.0
 PING3=0.0.0.0
 #---------------------------------------
-TIME1=`date +"%A %d %B %Y (%r)"`
-#---------------------------------------
 
-check_response() #response codes are the following 0=reachable 1=unreachable
-{
-echo -e "\n###Date of check $TIME1###\n"
+LOG_PATH_DEFAULT="results_ping.txt"
+LOG_PATH="${LOG_PATH:-$LOG_PATH_DEFAULT}"
+LOG_ENABLED=true
 
-FIRST_PING=$(ping -c 1 $PING1 ; echo $?)
-FIRST_RESULT=${FIRST_PING: -1}
-if [ $FIRST_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${FIRST_PING: -1}"
-else
-    echo "Host Reachable with exit code ${FIRST_PING: -1}"
-fi
-
-SECOND_PING=$(ping -c 1 $PING2 ; echo $?)
-SECOND_RESULT=${SECOND_PING: -1}
-if [ $SECOND_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${SECOND_PING: -1}"
-else
-    echo "Host Reachable with exit code ${SECOND_PING: -1}"
-fi
-
-THIRD_PING=$(ping -c 1 $PING3 ; echo $?)
-THIRD_RESULT=${THIRD_PING: -1}
-if [ $THIRD_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${THIRD_PING: -1}"
-else
-    echo "Host Reachable with exit code ${THIRD_PING: -1}"
-fi
+usage() {
+  echo "Usage: $0 [--log <file>] [--no-log]"
 }
 
-#Creates file if does not exist
-touch results_ping.txt
-
-#Updating log file and providing feedback to terminal
-while true
-do
-echo "Writing to log file"
-check_response >> results_ping.txt
-echo "Check log file results_ping.txt"
-sleep 300
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --log)
+      if [[ -z "$2" ]]; then
+        echo "Error: --log requires a file path" >&2
+        usage
+        exit 2
+      fi
+      LOG_PATH="$2"
+      shift 2
+      ;;
+    --no-log)
+      LOG_ENABLED=false
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Error: Unknown argument $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
 done
 
-exit $?
+log_line() {
+  local line="$1"
+  echo "$line"
+  if [[ "$LOG_ENABLED" == "true" ]]; then
+    echo "$line" >> "$LOG_PATH"
+  fi
+}
+
+handle_exit() {
+  local timestamp
+  timestamp=$(date +"%Y-%m-%dT%H:%M:%S%z")
+  log_line "$timestamp signal=terminated message=Flushing final message before exit"
+  exit 130
+}
+
+trap handle_exit INT TERM
+
+if [[ "$LOG_ENABLED" == "true" ]]; then
+  touch "$LOG_PATH"
+fi
+
+HOSTS=($PING1 $PING2 $PING3)
+
+any_unreachable=0
+
+for host in "${HOSTS[@]}"; do
+  timestamp=$(date +"%Y-%m-%dT%H:%M:%S%z")
+  ping_output=$(ping -c 1 "$host" 2>&1)
+  ping_exit=$?
+
+  latency=$(echo "$ping_output" | grep -o 'time=[0-9.]* ms' | awk -F'=' '{print $2}' | head -n 1)
+
+  if [[ $ping_exit -eq 0 ]]; then
+    status="reachable"
+    if [[ -z "$latency" ]]; then
+      latency="unknown"
+    fi
+  else
+    status="unreachable"
+    if [[ -z "$latency" ]]; then
+      latency="timeout"
+    fi
+    any_unreachable=1
+  fi
+
+  log_line "$timestamp host=$host status=$status latency=$latency"
+done
+
+exit $any_unreachable
