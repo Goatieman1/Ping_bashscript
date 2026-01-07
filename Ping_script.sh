@@ -5,39 +5,63 @@ PING1=0.0.0.0
 PING2=0.0.0.0
 PING3=0.0.0.0
 #---------------------------------------
-TIME1=`date +"%A %d %B %Y (%r)"`
-#---------------------------------------
+
+NO_COLOR=""
+
+while [[ $# -gt 0 ]]
+do
+case "$1" in
+    --no-color)
+    NO_COLOR=1
+    shift
+    ;;
+    *)
+    echo "Unknown option: $1"
+    exit 1
+    ;;
+esac
+done
+
+if [[ -t 1 && -z "$NO_COLOR" ]]
+then
+    COLOR_GREEN="\033[32m"
+    COLOR_RED="\033[31m"
+    COLOR_BLUE="\033[34m"
+    COLOR_RESET="\033[0m"
+else
+    COLOR_GREEN=""
+    COLOR_RED=""
+    COLOR_BLUE=""
+    COLOR_RESET=""
+fi
 
 check_response() #response codes are the following 0=reachable 1=unreachable
 {
-echo -e "\n###Date of check $TIME1###\n"
+    local time_of_check success_count=0 failure_count=0
+    time_of_check=$(date +"%A %d %B %Y (%r)")
 
-FIRST_PING=$(ping -c 1 $PING1 ; echo $?)
-FIRST_RESULT=${FIRST_PING: -1}
-if [ $FIRST_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${FIRST_PING: -1}"
-else
-    echo "Host Reachable with exit code ${FIRST_PING: -1}"
-fi
+    echo -e "\n${COLOR_BLUE}###Date of check $time_of_check###${COLOR_RESET}\n"
 
-SECOND_PING=$(ping -c 1 $PING2 ; echo $?)
-SECOND_RESULT=${SECOND_PING: -1}
-if [ $SECOND_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${SECOND_PING: -1}"
-else
-    echo "Host Reachable with exit code ${SECOND_PING: -1}"
-fi
+    ping_and_report() {
+        local host=$1
 
-THIRD_PING=$(ping -c 1 $PING3 ; echo $?)
-THIRD_RESULT=${THIRD_PING: -1}
-if [ $THIRD_RESULT -gt 0 ]
-then
-    echo "Host Unreachable with exit code ${THIRD_PING: -1}"
-else
-    echo "Host Reachable with exit code ${THIRD_PING: -1}"
-fi
+        if ping -c 1 "$host" > /dev/null 2>&1
+        then
+            local exit_code=$?
+            echo -e "${COLOR_GREEN}Host $host reachable with exit code $exit_code${COLOR_RESET}"
+            ((success_count++))
+        else
+            local exit_code=$?
+            echo -e "${COLOR_RED}Host $host unreachable with exit code $exit_code${COLOR_RESET}"
+            ((failure_count++))
+        fi
+    }
+
+    ping_and_report "$PING1"
+    ping_and_report "$PING2"
+    ping_and_report "$PING3"
+
+    echo -e "${COLOR_BLUE}Summary: ${success_count} successful, ${failure_count} failed${COLOR_RESET}"
 }
 
 #Creates file if does not exist
